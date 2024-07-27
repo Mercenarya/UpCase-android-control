@@ -1,10 +1,14 @@
 import sqlite3
 import os
 
-DB = sqlite3.connect("APKupcase.db",check_same_thread=False)
+
+
+current = os.path.abspath(os.path.dirname(__file__))
+db_path = os.path.join(current,"androidupcase.db")
+DB = sqlite3.connect("androidupcase.db",check_same_thread=False)
 cursor = DB.cursor()
 
-
+print(db_path)
 
 def Profile():
     Setprofile = '''
@@ -29,6 +33,16 @@ def Note():
         )
     '''
     return setNote
+def Schedule():
+    setSchedule = '''
+        CREATE TABLE schedule (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            task VARCHAR(500),
+            datepick DATETIME,
+            timepick TEXT
+        )
+    '''
+    return setSchedule
 def Item():
     setItem = '''
         CREATE TABLE item (
@@ -55,13 +69,23 @@ try:
             VALUES (?, ?, ?, ?, ?, ?)
         '''
     tub = [1,'None','None','None','Offline','dd/mm/yy']
+
+    Insert_DB_query_2 = f'''
+            INSERT INTO schedule (id,task,datepick,timepick)
+            VALUES (?, ?, ?, ?)
+        '''
+    tub_2 = [1,'Go to School','Tuesday','7:00 AM']
     if sqlite3.Connection:
         print("Connection set up")
-        cursor.execute(Insert_DB_query,tub)
+        # cursor.execute(Item())
+        # cursor.execute(Profile())
+        # cursor.execute(Note())
+        # cursor.execute(Schedule())
+        # cursor.execute(Insert_DB_query,tub)
+        # cursor.execute(Insert_DB_query_2,tub_2)
         # print("Release list of table")
-        # for obj in cursor.fetchall():
-        #     print(obj[0])
         # print("Command in process")
+        # cursor.execute("DROP TABLE schedule")
         DB.commit()
     elif sqlite3.Error:
         print("DB Error")

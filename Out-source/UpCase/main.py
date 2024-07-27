@@ -2,14 +2,13 @@ import flet as ft
 from flet import View
 import sqlite3
 import datetime
-import os
 import base64
 import translate
-from translate import Translator
 import time
+import urllib3
 #Database Connection
 
-db = sqlite3.connect('Apkupcase.db',check_same_thread=False)
+db = sqlite3.connect('androidupcase.db',check_same_thread=False)
 cursor = db.cursor()
 
 #Test connection
@@ -287,6 +286,13 @@ class Note(ft.Column):
         self.update()
 
     def Save_Note(self,e):
+        Edit_Query = f'''UPDATE note SET textiled = '{self.Edit_text.value}' WHERE title = '{self.Display_title.value}' '''
+        try:
+            cursor.execute(Edit_Query)
+            print("Note Updated")
+            db.commit()
+        except sqlite3.Error as error:
+            print(error)
         self.Display_text.value = self.Edit_text.value
         self.Display_Note.visible = True
         self.Edit_Note_text.visible = False
@@ -310,7 +316,7 @@ class Note(ft.Column):
     def Keyword_trans(self, e):
         self.loading(e)
         self.Progress.visible=False
-        trans = Translator(from_lang=f"{self.Language.value}",to_lang=f"{self.Translator.value}")
+        trans = translate.Translator(from_lang=f"{self.Language.value}",to_lang=f"{self.Translator.value}")
         text = trans.translate(str(self.Searchitem.value.strip()))
         self.translated_text = ft.Text(value=text,size=15,color="white") 
         self.Keyword_Search.height=600
@@ -351,10 +357,12 @@ class SelectionTabs(ft.Column):
         super().__init__()
         
         self.Todonoticetext = ft.Text("You have 0 Task to finish",color="white",weight="bold")
+        self.Notenoticetext = ft.Text("You have 0 Note to finish",color="white",weight="bold")
         #Todo item count
         cursor.execute("SELECT COUNT(*) FROM item")
         for obj in cursor.fetchall():
             self.Todonoticetext.value = f"You have {obj[0]} Tasks to finish"
+
         self.TodoNotice = ft.Container(
             ft.Row(
                 [
@@ -390,6 +398,23 @@ class SelectionTabs(ft.Column):
                 [
                     ft.Icon(name=ft.icons.CHAT,color="white"),
                     ft.Text(f"Coming soon ...",color="white",weight="bold")
+                ]
+            ),
+            padding=20,
+            width=400,
+            height=70,
+            bgcolor="black",
+            border_radius=20
+        )
+        #Note Notice
+        cursor.execute("SELECT COUNT(*) FROM note")
+        for obj in cursor.fetchall():
+            self.Notenoticetext.value = f"You have {obj[0]} Notes"
+        self.Notenotice = ft.Container(
+            ft.Row(
+                [
+                    ft.Icon(name=ft.icons.NOTE_ALT,color="white"),
+                    self.Notenoticetext
                 ]
             ),
             padding=20,
@@ -436,6 +461,7 @@ class SelectionTabs(ft.Column):
                     self.TodoNotice,
                     self.ScheduleNotice,
                     self.ChatAINotice,
+                    self.Notenotice
                 ],
                 scroll=ft.ScrollMode.HIDDEN
             ),
@@ -445,7 +471,8 @@ class SelectionTabs(ft.Column):
         self.tabs_2 = ft.Container(
             ft.Column(
                 [
-                    ft.Text("List of items",color="white"),
+                    ft.Text("To do",size=30,color="white"),
+                    ft.Text("List of items",color="white",italic=True),
                     self.item
                 ]
             ),
@@ -512,9 +539,6 @@ class NotedApp(ft.Column):
     def __init__(self):
         super().__init__()
         
-        
-
-
 
         self.Note_title = ft.TextField(width=400,border_color="white",hint_text="Tittle...")
         self.Note_textField = ft.TextField(value="\n\n",width=400,border_color="white",hint_text="TextLine...",
@@ -774,18 +798,52 @@ class TodoApp(ft.Column):
 class Greetingbanner(ft.Column):
     def __init__(self):
         super().__init__()
-        self.Search = ft.Container(
-            ft.TextField(width=300,height=50,border_color="white",hint_text="Search...",
-                hint_style=ft.TextStyle(color="white",size=15),
-                text_size=15,border_radius=10,color="white"
-            ),
-        )
         self.tabs = SelectionTabs()
         self.Menu = ft.IconButton(ft.icons.MENU,icon_color="white",on_click=None,visible=True)
-        self.SearchIcon = ft.IconButton(icon="search",icon_color="white",on_click=None,visible=True)
+        self.Notification_stack = ft.Container(
+            content=ft.Container(
+                # ft.Text("1",color="white",size=10),
+                width=15,
+                height=15,
+                bgcolor="red",
+                border_radius=10,
+                padding=ft.padding.only(left=6,top=3)
+            ),
+            alignment=ft.alignment.bottom_left,
+            visible=False
+        )
+        self.RingIcon = ft.Stack(
+            [
+                ft.CircleAvatar(
+                    content=ft.Icon(name=ft.icons.NOTIFICATIONS,color="white",size=30),
+                    bgcolor="Orange",
+                ),
+                self.Notification_stack
+            ],
+            width=40,
+            height=40,
+        )
+        Check_Data = '''SELECT COUNT(*) FROM item 
+                        UNION 
+                        SELECT COUNT(*) FROM note'''
+        try:
+            cursor.execute(Check_Data)
+            for obj in cursor.fetchall():
+                item = obj[0]
+            if item == 0:
+                self.Notification_stack.visible = False
+                print("000")
+            else:
+                self.Notification_stack.visible = True
+                print("OK")
+            db.commit()
+        except sqlite3.Error as error:
+            print(error)
+
+
         self.OpenBar = ft.Container(width=100,height=10,bgcolor="grey",on_click=self.Tabs_TopBar,visible=True)
         self.CloseBar = ft.Container(width=100,height=10,bgcolor="grey",on_click=self.Tabs_TopBar_close,visible=False)
-
+        
         self.Bar = ft.Container(
                 ft.Column(
                     [
@@ -793,13 +851,14 @@ class Greetingbanner(ft.Column):
                             [
                                 self.Menu,
                                 ft.Text("UpCase",color="white",size=25,weight="bold"),
-                                self.SearchIcon
+                                self.RingIcon
+                                
                             ],
                             alignment="spaceBetween",
                         ),
                         ft.Row(
                             [
-                                self.Search,
+                                # self.Search,
                             ],
                             alignment=ft.MainAxisAlignment.CENTER
                         ),
@@ -832,27 +891,289 @@ class Greetingbanner(ft.Column):
             )
         ]
     def Tabs_TopBar(self, e):
+        self.Notification_update(e)
         self.OpenBar.visible = False
         self.CloseBar.visible = True
         self.Bar.height = 500 if self.Bar.height == 60 else 60
         self.update()
 
     def Tabs_TopBar_close(self, e):
+        self.Notification_update(e)
         self.OpenBar.visible = True
         self.CloseBar.visible = False
         self.Bar.height = 60 if self.Bar.height == 500 else 500
         self.update()
+
+    def Notification_update(self,e):
+        
+        Check_Data = '''SELECT COUNT(*) FROM item 
+                        UNION 
+                        SELECT COUNT(*) FROM note'''
+        try:
+            cursor.execute(Check_Data)
+            for obj in cursor.fetchall():
+                item = obj[0]
+            if item == 0:
+                self.Notification_stack.visible = False
+                print("000")
+            else:
+                self.Notification_stack.visible = True
+                print("OK")
+            db.commit()
+        except sqlite3.Error as error:
+            print(error)
+
+        self.update()
     
   
+class Schedule(ft.Column):
+    def __init__(self, sdl_task, sdl_date, sdl_time, Delete):
+        super().__init__()
+        self.name_sdl = sdl_task
+        self.date_sdl = sdl_date
+        self.Time_sdl = sdl_time
+        self.delete_sdl = Delete
+        
+        self.sdl_value =ft.Text(value=self.name_sdl,color="white",size=20,weight="bold")
+        self.time_value = ft.Text(value=self.Time_sdl, color="white",weight="bold")
+        self.date_value = ft.Text(value=self.date_sdl,color="white",italic=True)
+
+        self.edit_sdl = ft.TextField(width=150,height=40,border_color="white")
+
+        self.display_Schedule =  ft.Container(
+                ft.Column(
+                    controls=[
+                        ft.Container(
+                            ft.Column(
+                                [
+                                    self.sdl_value,
+                                    self.date_value,
+                                    self.time_value
+                                ]
+                            ),
+                            width=150,
+                            height=80
+                        ),
+                        ft.Row(
+                            [
+                                ft.IconButton(ft.icons.DELETE,icon_color="red",on_click=self.Deletete_clicked),
+                                ft.IconButton(ft.icons.EDIT,icon_color="blue", on_click=None)
+                            ]
+                        )
+                    ]
+                ),
+                padding=ft.padding.only(left=10),
+                width=400,
+                height=150,
+                border=ft.border.all(1,"White"),
+                bgcolor="black",
+            
+            )
+        
+        self.Edit_Schedule = ft.Container(
+            ft.Row(
+                controls=[
+                    self.edit_sdl,
+                    ft.IconButton(ft.icons.DONE, on_click=None)
+                ]
+            ),
+            padding=ft.padding.only(left=10),
+            width=400,
+            height=50,
+            border=ft.border.all(1,"white"),
+            bgcolor="black",
+            visible=False
+            
+        )
+        self.controls = [self.display_Schedule, self.Edit_Schedule]
     
+    def Deletete_clicked(self, e):
+        try:
+            Remove_sdl = '''
+                DELETE FROM schedule WHERE datepick = ?
+            '''
+            object = [self.date_value.value]
+            cursor.execute(Remove_sdl,object)
+            db.commit()
+        except sqlite3.Error as error:
+            print(error)
+        self.delete_sdl(self)
+
+    def Edit_task(self,e):
+        self.display_Schedule.visible = False
+        self.Edit_Schedule.visible = True
+        self.update()
+
+
+    def Save_changed(self, e):
+        self.sdl_value.value = self.edit_sdl.value
+        self.display_Schedule.visible = True
+        self.Edit_Schedule.visible = False
+        self.update()
 
 
 
+class ScheduleUpload(ft.Column):
+    def __init__(self):
+        super().__init__()
+        self.List_task = []
+        self.item_task = ft.Text(color="white",visible=False)
+    
+        
+        self.Sdl_Field = ft.TextField(width=400,border_color="white",hint_text="Task...",
+                              hint_style=ft.TextStyle(color="grey"),color="white")
+        
+        self.Date_Drop = ft.Dropdown(
+            options=[
+                ft.dropdown.Option("Monday"),
+                ft.dropdown.Option("Tuesday"),
+                ft.dropdown.Option("Wednesday"),
+                ft.dropdown.Option("Thursday"),
+                ft.dropdown.Option("Friday"),
+                ft.dropdown.Option("Saturday"),
+                ft.dropdown.Option("Sunday")
+            ],
+            width=400,
+            border_color="white",
+            color="white"
+        )
+
+        self.Time_Field = ft.TextField(width=400,border_color="white",hint_text="Time",
+                              hint_style=ft.TextStyle(color="grey"),color="white")
+    
+        self.SDL_list = ft.Column(
+            [
+                
+            ],
+            scroll=ft.ScrollMode.HIDDEN,
+            height=400,
+            width=400,
+        )
+        self.item_list = ft.Column(
+            [
+                
+            ],
+            scroll=ft.ScrollMode.HIDDEN,
+            height=400,
+            width=400,
+            # visible=False
+        )
+        
+        
+        self.Checked_list = ft.Column(
+            [],
+            scroll=ft.ScrollMode.HIDDEN,
+            height=400,
+            width=400,
+        )
+
+
+        cursor.execute("SELECT * FROM schedule")
+        for obj in cursor.fetchall():
+            sdl = Schedule(obj[1], obj[2], obj[3], self.Delete)
+            self.SDL_list.controls.append(sdl)
 
 
 
+        self.count = ft.Text(value=f"You have {len(self.List_task)} task in Schedule",color="white")
+        if len(self.List_task) == 1 or len(self.List_task) == 0:
+            self.count.value = f"You have {len(self.List_task)} task in Schedule"
+        else:
+            self.count.value = f"You have {len(self.List_task)} tasks in Schedule"
+        self.controls = [
+
+            ft.Column(
+                controls=[
+                    ft.Column(
+                        [
+                            self.Sdl_Field,
+                            self.Date_Drop,
+                            self.Time_Field,
+                        ]
+                    ),
+                    ft.FloatingActionButton(
+                        icon=ft.icons.ADD, on_click=self.add
+                    ),
+                    
+                ]
+            ),
+            
+            self.count,
+            self.SDL_list,
+            self.item_list            
+        ]
+
+    def Status_Stack(self, e):
+        self.update()
+        
+
+    def add(self, e):
+        task = Schedule(self.Sdl_Field.value, self.Date_Drop.value ,self.Time_Field.value ,self.Delete)
+        self.item_task.value = self.Sdl_Field.value
+        try:
+            Add_query = '''
+                INSERT INTO schedule (task, datepick, timepick) VALUES (?, ?, ?)
+            '''
+            Sdl_tubs = [self.Sdl_Field.value, self.Date_Drop.value, self.Time_Field.value]
+            cursor.execute(Add_query,Sdl_tubs)
+            db.commit()
+            print("New SDL reveal")
+        except sqlite3.Error as error:
+            print(error)
+
+        self.SDL_list.controls.append(task)
+        self.List_task.append(task)
+        self.update()
+
+    def Delete(self, task):
 
         
+        if len(self.List_task) == 0:
+            self.count.value = f"You have {len(self.List_task)} task in Schedule"
+        else:
+            self.count.value = f"You have {len(self.List_task)} tasks in Schedule"
+        # self.List_task.pop()
+        self.SDL_list.controls.remove(task)
+        self.update()
+
+       
+
+        
+        
+
+
+
+
+
+
+
+def Connection():
+    resp = urllib3.request("Get",'https://www.google.com',timeout=2.0)
+    Status = resp.status
+    resp.release_conn()
+    if Status == 200:
+        return True
+    return False
+
+
+
+
+def Wifi_Response(page: ft.Page):
+    page.add(
+        ft.Container(
+            ft.Column(
+                [
+                    ft.Icon(name=ft.icons.SIGNAL_WIFI_CONNECTED_NO_INTERNET_4_SHARP,size=100,color="white"),
+                    ft.Text("Connection Interrupted",size=10,color="White")
+                ]
+            ),
+            padding=ft.padding.only(top=200,left=120,right=100)
+        )
+    )
+    page.window_width = 380
+    page.window_resizable = False
+    page.on_resize = True
+    page.update()       
 
 
 
@@ -1106,7 +1427,7 @@ def main(page: ft.Page):
     
     #Build Banner
     avt = ft.Container(
-        image_src="C:/pen.png",
+        image_src=None,
         bgcolor="grey",
         border=ft.border.BorderSide(5,"black"),
         border_radius=100,
@@ -1425,6 +1746,44 @@ def main(page: ft.Page):
     )
 
 
+    Schedule_image = ft.Container(
+        image_src="https://enwpgo.files.wordpress.com/2018/09/00a0f-sw-531542.jpg?w=888",
+        height=150,
+        width=230,
+        border_radius=20,
+        bgcolor=ft.colors.GREY_100,
+        image_fit= ft.ImageFit.COVER
+    )
+
+    #Schedule
+    Schedule_utility = ft.Container(
+        ft.Column(
+            [
+                Schedule_image,
+                ft.Row(
+                    [
+                        ft.Text("Schedule set up",color="grey")
+                    ],
+                    alignment=ft.MainAxisAlignment.CENTER
+                ),
+            ]
+        ),
+        height=250,
+        width=250,
+        border_radius=20,
+        bgcolor="white",
+        padding= ft.padding.only(left=10,top=10),
+        
+        shadow= ft.BoxShadow(
+            blur_radius=3,
+            color="black",
+            blur_style=ft.ShadowBlurStyle.OUTER
+        ),
+        on_click = lambda _: page.go("/Schedule")
+    )
+
+
+
 
 
 
@@ -1441,7 +1800,8 @@ def main(page: ft.Page):
                     [
                         AI_utility,
                         ToDo_utility,
-                        Note_utility
+                        Note_utility,
+                        Schedule_utility
                         
                     ],
                     scroll=ft.ScrollMode.ALWAYS,
@@ -1454,13 +1814,102 @@ def main(page: ft.Page):
         height=350,
         margin=ft.margin.only(top=10),
         # padding=5
-        
-       
     )
 
 
 
 
+    Monday_submit = ft.Column([],scroll=ft.ScrollMode.ALWAYS,height=200)
+    Tuesday_submit = ft.Column([],scroll=ft.ScrollMode.ALWAYS,height=200)
+
+    def Display_Mon(e):
+        try:
+            cursor.execute("SELECT task, timepick FROM schedule WHERE datepick = 'Monday'")
+            for obj in cursor.fetchall(): 
+                Monday_submit.controls.append(ft.Container(
+                        ft.Column(
+                            [
+                                ft.Text(value=obj[0],color="white",weight="bold"),
+                                ft.Text(value=obj[1],color="white")
+                                
+                            ]
+                        ),
+                        bgcolor="black",
+                        padding=10,
+                        border_radius=10,
+                        height=70,
+                        width=320,
+                        visible=True
+                    )
+                )
+                
+
+            db.commit()
+        except sqlite3.Error as error:
+            print(error)
+        page.update()
+
+    def Display_Tue(e):
+        try:
+            cursor.execute("SELECT task, timepick FROM schedule WHERE datepick = 'Tuesday' ")
+            for obj in cursor.fetchall():
+                Tuesday_submit.controls.append(ft.Container(
+                        ft.Column(
+                            [
+                                ft.Text(value=obj[0],color="white",weight="bold"),
+                                ft.Text(value=obj[1],color="white")
+                                
+                            ]
+                        ),
+                        bgcolor="black",
+                        padding=10,
+                        border_radius=20,
+                        height=70,
+                        width=320,
+                        visible=True
+                    )
+                )
+
+            db.commit()
+        except sqlite3.Error as error:
+            print(error)
+        page.update()
+    
+
+    # Monday_submit = ft.Container(
+    #     ft.Column(
+    #         [
+    #             mond_text,
+    #             mond_time
+                
+    #         ]
+    #     ),
+    #     bgcolor="black",
+    #     padding=20,
+    #     border_radius=20,
+    #     height=100,
+    #     width=320,
+    #     visible=True
+    # )
+
+
+    
+
+    # Tuesday_submit = ft.Container(
+    #     ft.Column(
+    #         [
+    #             tues_text,
+    #             tues_time
+    #         ]
+    #     ),
+    #     bgcolor="black",
+    #     padding=20,
+    #     border_radius=20,
+    #     height=100,
+    #     width=320,
+    #     visible=True
+    # )
+    
     #Schedule
     ScheduleTabs = ft.Tabs(
         selected_index=1,
@@ -1468,10 +1917,21 @@ def main(page: ft.Page):
         tabs=[
             ft.Tab(
                 text="Monday",
-                
+                content=ft.Column(
+                    [
+                        Monday_submit
+                    ],
+                    scroll=ft.ScrollMode.ALWAYS
+                )
             ),
             ft.Tab(
                 text="Tuesday",
+                content=ft.Column(
+                    [
+                        Tuesday_submit
+                    ],
+                    scroll=ft.ScrollMode.ALWAYS
+                )
                 
             ),
             ft.Tab(
@@ -1559,7 +2019,8 @@ def main(page: ft.Page):
     page_2 = ft.Container(
         ft.Column(
             [                
-                TodoApp()
+                TodoApp(),
+                
             ],
             height=500
         ),
@@ -1657,6 +2118,8 @@ def main(page: ft.Page):
                 ],
                 Display_Profile(e),
                 Display_Edit_Profile(e),
+                Display_Mon(e),
+                Display_Tue(e),
                 bgcolor="Black"
             )
         )
@@ -1691,6 +2154,23 @@ def main(page: ft.Page):
                     ]
                 )
             )
+        elif page.route == "/Schedule":
+            page.views.append(
+                View(
+                    "/Schedule",
+                    [
+                        ft.Row(
+                            [
+                                ft.IconButton(ft.icons.ARROW_BACK,on_click= lambda _:page.go("/HOME"))
+
+                            ]
+                        ),
+                        ScheduleUpload(),
+                        
+                    ]
+                )
+            )
+
 
         page.update()
     def view_pop(View):
@@ -1709,4 +2189,9 @@ def main(page: ft.Page):
     page.update()
 
 if __name__ == "__main__":
-    ft.app(target=main,assets_dir='assets')
+    try:
+        print(Connection())
+        ft.app(target=main,assets_dir='assets')
+
+    except:
+        ft.app(target=Wifi_Response,assets_dir='assets')
